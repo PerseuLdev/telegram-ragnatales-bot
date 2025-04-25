@@ -8,6 +8,14 @@ from selenium.webdriver.common.action_chains import ActionChains
 import chromedriver_autoinstaller
 import time
 import re
+import os
+from dotenv import load_dotenv
+
+# Carrega as variáveis do .env
+load_dotenv()
+
+# Acessa o token
+TOKEN = os.getenv("BOT_TOKEN")
 
 # Ativa o ChromeDriver automaticamente
 chromedriver_autoinstaller.install()
@@ -90,11 +98,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 Envie o nome de um item para buscar o mais barato no market do Ragnatales!")
 
-# Token do bot
-BOT_TOKEN = "7869571195:AAHU4tspTzp3VGhoTyl8CD8Kq6wi-vIJNC4"
-
 def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     print("🤖 Bot está rodando...")
