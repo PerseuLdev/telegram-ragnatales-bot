@@ -5,16 +5,3 @@
 # Virtualenv
 venv/
 .env/
-
-# Cache do Python
-__pycache__/
-*.py[cod]
-
-# IDE/Editor
-.idea/
-.vscode/
-*.swp
-
-# Arquivos gerados
-*.log
-*.sqlite
