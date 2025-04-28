@@ -5,7 +5,8 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
-import chromedriver_autoinstaller
+from selenium.webdriver.chrome.options import Options  # Adicionado
+from selenium.webdriver.chrome.service import Service  # Adicionado
 import time
 import re
 import os
@@ -17,20 +18,27 @@ load_dotenv()
 # Acessa o token
 TOKEN = os.getenv("BOT_TOKEN")
 
-# Ativa o ChromeDriver automaticamente
-chromedriver_autoinstaller.install()
-
-# Ativa logs para depuração
+# Configura logs
 logging.basicConfig(level=logging.INFO)
 
-# Função que coleta o menor preço, local e preço médio
+def setup_chrome():
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")  # Modo headless para o Render
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    
+    # Define o caminho do ChromeDriver (opcional, o Selenium geralmente detecta automaticamente)
+    service = Service()
+    navegador = webdriver.Chrome(service=service, options=chrome_options)
+    return navegador
+
 def get_item_info(item_name):
-    navegador = webdriver.Chrome()
-    navegador.get("https://ragnatales.com.br/db/items")
-    navegador.maximize_window()
-    time.sleep(5)
+    navegador = setup_chrome()  # Usa a configuração do Chrome
     
     try:
+        navegador.get("https://ragnatales.com.br/db/items")
+        time.sleep(5)
+        
         campo_pesquisar = navegador.find_element(By.CSS_SELECTOR, "input[placeholder='Filtrar por nome']")
         campo_pesquisar.click()
         campo_pesquisar.send_keys(item_name, Keys.ENTER)
@@ -72,8 +80,6 @@ def get_item_info(item_name):
                 lowest_price = price
                 lowest_location = location
 
-        navegador.quit()
-
         if lowest_price != float('inf'):
             formatted_price = f"{int(lowest_price):,}".replace(",", ".")
             resposta = f"🛒 O {item_name} mais barato(a) encontrado(a) custa: {formatted_price} zenys e está no {lowest_location}."
@@ -83,18 +89,21 @@ def get_item_info(item_name):
             resposta = f"❌ O item '{item_name}' não consta no market."
 
         return resposta
-    except:
-        navegador.quit()
-        return f"❌ O item '{item_name}' não consta no market."
 
-# Função para lidar com mensagens de texto
+    except Exception as e:
+        logging.error(f"Erro ao buscar item: {e}")
+        return f"❌ O item '{item_name}' não consta no market ou ocorreu um erro."
+
+    finally:
+        navegador.quit()  # Garante que o navegador seja fechado
+
+# Restante do código (idêntico)
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = update.message.text
     await update.message.reply_text("🔎 Buscando informações...")
     resposta = get_item_info(user_input)
     await update.message.reply_text(resposta)
 
-# Mensagem de boas-vindas
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 Envie o nome de um item para buscar o mais barato no market do Ragnatales!")
 
