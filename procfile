@@ -1,1 +1,1 @@
-worker: python promotales-bot.py
+worker: main.py
