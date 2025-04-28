@@ -1,5 +1,5 @@
 services:
-  - type: web
+  - type: worker  # Alterado de "web" para "worker"
     name: ragnatales-bot
     env: python
     buildCommand: pip install -r requirements.txt
