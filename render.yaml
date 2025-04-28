@@ -1,9 +1,13 @@
+
 services:
-  - type: worker  # Alterado de "web" para "worker"
+  - type: web
     name: ragnatales-bot
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python main.py
+    startCommand: PORT=10000 python main.py
+    envVars:
+      - key: PORT
+        value: 10000
     buildpacks:
       - url: heroku/python
       - url: https://github.com/heroku/heroku-buildpack-google-chrome
