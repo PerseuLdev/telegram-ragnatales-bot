@@ -1,18 +1,16 @@
 import logging
 import threading
+import re
+import os
+import time
+import json
+import asyncio
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
-from seleniumwire import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.action_chains import ActionChains
-import time
-import re
-import os
 from dotenv import load_dotenv
+import requests
+from bs4 import BeautifulSoup
 
 # Carrega as variáveis do .env
 load_dotenv()
@@ -37,94 +35,102 @@ def run_server():
     print(f"Servidor web iniciado na porta {port}")
     server.serve_forever()
 
-# Função que coleta o menor preço, local e preço médio
-def get_item_info(item_name):
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--window-size=1920,1080")
-
-    # Caminhos do Chrome e Chromedriver
-    chrome_binary = os.environ.get("GOOGLE_CHROME_SHIM", "/usr/bin/google-chrome")
-    chrome_driver_path = os.environ.get("CHROMEDRIVER_PATH", "/usr/bin/chromedriver")
-    chrome_options.binary_location = chrome_binary
-    service = Service(executable_path=chrome_driver_path)
-
+# Função que coleta o menor preço, local e preço médio usando requests e BeautifulSoup
+async def get_item_info(item_name):
+    # Headers para simular um navegador
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Referer': 'https://ragnatales.com.br/db/items',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Cache-Control': 'max-age=0',
+    }
+    
     try:
-        navegador = webdriver.Chrome(service=service, options=chrome_options)
-        navegador.get("https://ragnatales.com.br/db/items")
-        time.sleep(5)
-
-        try:
-            campo_pesquisar = navegador.find_element(By.CSS_SELECTOR, "input[placeholder='Filtrar por nome']")
-            campo_pesquisar.click()
-            campo_pesquisar.send_keys(item_name, Keys.ENTER)
-            time.sleep(3)
-
-            item = navegador.find_element(By.XPATH, '//a[starts-with(@href, "/db/items/")]')
-            item.click()
-            time.sleep(3)
-
-            try:
-                media_texto = navegador.find_element(By.XPATH, '//div[contains(text(), "A Média de preço deste item é de")]').text
-                media_price_match = re.search(r"[\d.,]+", media_texto)
-                media_price = media_price_match.group(0) if media_price_match else None
-            except:
-                media_price = None
-
-            botao_lojas = navegador.find_element(By.XPATH, '//button[contains(., "lojas")]')
-            navegador.execute_script("arguments[0].scrollIntoView({block: 'center'});", botao_lojas)
-            time.sleep(1)
-            ActionChains(navegador).move_to_element(botao_lojas).pause(0.5).click().perform()
-            time.sleep(3)
-
-            lojas = navegador.find_elements(By.CSS_SELECTOR, ".rounded-sm.bg-white.text-black.px-4.py-2.text-base")
-            lowest_price = float('inf')
-            lowest_location = ""
-
-            for loja in lojas:
-                text = loja.text
-                price_match = re.search(r"\b([\d\.]+,\d{2}|\d{1,3}(?:\.\d{3})+)\b", text)
-                if not price_match:
+        # Primeira requisição para buscar a lista de itens disponíveis
+        search_url = f"https://ragnatales.com.br/api/db/items?filter={item_name}"
+        search_response = requests.get(search_url, headers=headers)
+        search_response.raise_for_status()
+        
+        # Tenta processar a resposta JSON
+        search_data = search_response.json()
+        
+        # Verfica se encontrou algum item
+        if not search_data or 'data' not in search_data or not search_data['data']:
+            return f"❌ O item '{item_name}' não foi encontrado."
+        
+        # Pega o primeiro item da lista (mais relevante)
+        first_item = search_data['data'][0]
+        item_id = first_item['id']
+        item_name = first_item['name']
+        
+        # Busca informações detalhadas do item
+        item_url = f"https://ragnatales.com.br/api/db/items/{item_id}"
+        item_response = requests.get(item_url, headers=headers)
+        item_response.raise_for_status()
+        item_data = item_response.json()
+        
+        # Extrai preço médio, se disponível
+        media_price = None
+        if 'prices' in item_data and 'averagePrice' in item_data['prices']:
+            media_price = format(item_data['prices']['averagePrice'], ',').replace(',', '.')
+        
+        # Busca detalhes das lojas que vendem o item
+        shops_url = f"https://ragnatales.com.br/api/db/items/{item_id}/shops"
+        shops_response = requests.get(shops_url, headers=headers)
+        shops_response.raise_for_status()
+        shops_data = shops_response.json()
+        
+        lowest_price = float('inf')
+        lowest_location = ""
+        
+        # Processa cada loja para encontrar o menor preço
+        if shops_data and 'data' in shops_data and shops_data['data']:
+            for shop in shops_data['data']:
+                if 'price' not in shop:
                     continue
-                price_str = price_match.group(1)
-                price = float(price_str.replace(".", "").replace(",", "."))
-
-                location_match = re.search(r"@market (\d+)/(\d+)", text)
-                location = f"@market {location_match.group(1)}/{location_match.group(2)}" if location_match else ""
-
+                    
+                price = float(shop['price'])
+                
+                # Extrai a localização da loja
+                location = ""
+                if 'coords' in shop and 'x' in shop['coords'] and 'y' in shop['coords']:
+                    location = f"@market {shop['coords']['x']}/{shop['coords']['y']}"
+                
                 if price < lowest_price:
                     lowest_price = price
                     lowest_location = location
-
-            navegador.quit()
-
-            if lowest_price != float('inf'):
-                formatted_price = f"{int(lowest_price):,}".replace(",", ".")
-                resposta = f"🛒 O {item_name} mais barato(a) encontrado(a) custa: {formatted_price} zenys e está no {lowest_location}."
-                if media_price:
-                    resposta += f"\n📊 Média de preço deste item: {media_price} zenys."
-            else:
-                resposta = f"❌ O item '{item_name}' não consta no market."
-
-            return resposta
-
-        except Exception as e:
-            logging.error(f"Erro ao buscar item: {str(e)}")
-            navegador.quit()
-            return f"❌ O item '{item_name}' não foi encontrado. Erro: {str(e)}"
-
+        
+        # Formata a resposta
+        if lowest_price != float('inf'):
+            formatted_price = f"{int(lowest_price):,}".replace(",", ".")
+            resposta = f"🛒 O {item_name} mais barato(a) encontrado(a) custa: {formatted_price} zenys e está no {lowest_location}."
+            if media_price:
+                resposta += f"\n📊 Média de preço deste item: {media_price} zenys."
+        else:
+            resposta = f"❌ O item '{item_name}' não consta no market."
+            
+        return resposta
+        
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Erro na requisição HTTP: {str(e)}")
+        return f"❌ Erro ao buscar informações do item '{item_name}'. Verifique o nome e tente novamente."
+    
+    except ValueError as e:
+        logging.error(f"Erro ao processar dados JSON: {str(e)}")
+        return f"❌ Não foi possível processar as informações do item '{item_name}'."
+    
     except Exception as e:
-        logging.error(f"Erro ao iniciar navegador: {str(e)}")
-        return f"❌ Erro ao iniciar o navegador: {str(e)}"
+        logging.error(f"Erro inesperado: {str(e)}")
+        return f"❌ Ocorreu um erro inesperado ao buscar '{item_name}'. Por favor, tente novamente mais tarde."
 
 # Função que trata mensagens de texto
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = update.message.text
     await update.message.reply_text("🔎 Buscando informações...")
-    resposta = get_item_info(user_input)
+    resposta = await get_item_info(user_input)
     await update.message.reply_text(resposta)
 
 # Mensagem de boas-vindas
@@ -132,10 +138,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 Envie o nome de um item para buscar o mais barato no market do Ragnatales!")
 
 def main():
+    # Inicia o servidor web em uma thread separada
     server_thread = threading.Thread(target=run_server)
     server_thread.daemon = True
     server_thread.start()
 
+    # Inicia o bot do Telegram
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
