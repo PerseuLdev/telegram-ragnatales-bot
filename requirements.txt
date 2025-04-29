@@ -1,7 +1,4 @@
-selenium-wire==5.1.0
 python-telegram-bot==20.7
 python-dotenv
-chromedriver-autoinstaller
-blinker==1.6.2
-flask>=2.3.0
-werkzeug>=2.3.0
+requests==2.31.0
+beautifulsoup4==4.12.2
