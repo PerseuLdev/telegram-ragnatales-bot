@@ -158,26 +158,48 @@ def init_bot():
 # Rota para o webhook
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
-    update = Update.de_json(request.get_json(force=True), bot.bot)
-    bot.process_update(update)
-    return "OK"
+    try:
+        logger.info("Webhook chamado!")
+        json_data = request.get_json(force=True)
+        logger.info(f"Dados recebidos: {json_data}")
+        
+        update = Update.de_json(json_data, bot.bot)
+        bot.process_update(update)
+        return "OK"
+    except Exception as e:
+        logger.error(f"Erro no webhook: {e}")
+        return "Error", 500
 
 # Rota para verificação de saúde
 @app.route("/")
 def health_check():
     return "Bot is running!"
 
-if __name__ == "__main__":
+# Variável global para o aplicativo Telegram
+bot = None
+
+def create_app():
+    global bot
     # Inicializa o bot
     bot = init_bot()
     
-    # Configura o webhook
+    # Configura o webhook (apenas se não estiver em modo teste)
     webhook_path = f"/{TOKEN}"
     webhook_url = f"{WEBHOOK_URL}{webhook_path}"
     
-    logger.info(f"Configurando webhook em: {webhook_url}")
-    bot.bot.set_webhook(webhook_url)
+    try:
+        logger.info(f"Configurando webhook em: {webhook_url}")
+        bot.bot.set_webhook(webhook_url)
+        logger.info("Webhook configurado com sucesso!")
+    except Exception as e:
+        logger.error(f"Erro ao configurar webhook: {e}")
     
-    # Inicia o servidor Flask
+    return app
+
+# Inicializa a aplicação uma vez na importação
+app = create_app()
+
+if __name__ == "__main__":
+    # Inicia o servidor Flask (usado apenas para desenvolvimento local)
     logger.info(f"Iniciando servidor Flask na porta {PORT}")
     app.run(host="0.0.0.0", port=PORT)
