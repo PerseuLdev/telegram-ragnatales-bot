@@ -52,5 +52,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Porta para a aplicação
 EXPOSE 8080
 
-# Comando para iniciar a aplicação
-CMD ["gunicorn", "main:app", "--bind", "0.0.0.0:8080", "--workers", "1", "--threads", "8"]
+# Comando para iniciar a aplicação - definido no render.yaml, não aqui
+CMD ["sh", "-c", "gunicorn main:app --bind 0.0.0.0:${PORT:-8080} --workers 1 --threads 8 --timeout 120 --log-level debug"]
