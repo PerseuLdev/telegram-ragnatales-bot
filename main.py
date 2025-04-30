@@ -12,12 +12,18 @@ import time
 import re
 import os
 from dotenv import load_dotenv
+from flask import Flask, request
+
+# Flask app for webhook
+app = Flask(__name__)
 
 # Carrega as variáveis do .env
 load_dotenv()
 
-# Acessa o token
+# Acessa o token e webhook URL
 TOKEN = os.getenv("BOT_TOKEN")
+PORT = int(os.getenv("PORT", "8080"))
+WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://telegram-ragnatales-bot-1.onrender.com")
 
 # Configura o log para verificar problemas
 logging.basicConfig(
@@ -30,21 +36,13 @@ logger = logging.getLogger(__name__)
 def get_chrome_driver():
     chrome_options = Options()
     
-    # Verifica se está rodando em container
-    is_container = os.getenv("IS_CONTAINER", "False").lower() == "true"
-    
-    if is_container:
-        # Configurações para ambiente de container
-        chrome_options.add_argument("--headless")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.binary_location = "/usr/bin/google-chrome"
-        driver = webdriver.Chrome(options=chrome_options)
-    else:
-        # Para ambiente local
-        chromedriver_autoinstaller.install()
-        driver = webdriver.Chrome(options=chrome_options)
+    # Sempre assumindo ambiente de container no Render
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.binary_location = "/usr/bin/google-chrome"
+    driver = webdriver.Chrome(options=chrome_options)
     
     return driver
 
@@ -145,17 +143,41 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ Bot está online e funcionando!")
 
-def main():
+# Inicializa o bot
+def init_bot():
     logger.info("Iniciando o bot...")
-    app = ApplicationBuilder().token(TOKEN).build()
+    application = ApplicationBuilder().token(TOKEN).build()
     
     # Registra os handlers
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("ping", ping))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("ping", ping))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    logger.info("🤖 Bot está rodando...")
-    app.run_polling()
+    return application
+
+# Rota para o webhook
+@app.route(f"/{TOKEN}", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), bot.bot)
+    bot.process_update(update)
+    return "OK"
+
+# Rota para verificação de saúde
+@app.route("/")
+def health_check():
+    return "Bot is running!"
 
 if __name__ == "__main__":
-    main()
+    # Inicializa o bot
+    bot = init_bot()
+    
+    # Configura o webhook
+    webhook_path = f"/{TOKEN}"
+    webhook_url = f"{WEBHOOK_URL}{webhook_path}"
+    
+    logger.info(f"Configurando webhook em: {webhook_url}")
+    bot.bot.set_webhook(webhook_url)
+    
+    # Inicia o servidor Flask
+    logger.info(f"Iniciando servidor Flask na porta {PORT}")
+    app.run(host="0.0.0.0", port=PORT)
