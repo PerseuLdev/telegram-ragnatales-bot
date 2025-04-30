@@ -189,10 +189,30 @@ def create_app():
     
     try:
         logger.info(f"Configurando webhook em: {webhook_url}")
-        bot.bot.set_webhook(webhook_url)
-        logger.info("Webhook configurado com sucesso!")
+        # Log adicional para debug
+        logger.info(f"WEBHOOK_URL: {WEBHOOK_URL}")
+        logger.info(f"TOKEN: {'*' * (len(TOKEN) - 4) + TOKEN[-4:] if TOKEN else 'Não definido'}")
+        
+        # Garante que qualquer webhook anterior seja removido
+        bot.bot.delete_webhook()
+        time.sleep(1)  # Pequena pausa para garantir que o webhook foi removido
+        
+        # Configura o novo webhook com mais detalhes para debug
+        result = bot.bot.set_webhook(url=webhook_url)
+        logger.info(f"Resultado da configuração do webhook: {result}")
+        
+        # Verifica se o webhook foi configurado corretamente
+        webhook_info = bot.bot.get_webhook_info()
+        logger.info(f"Informações do webhook: URL={webhook_info.url}, Pendentes={webhook_info.pending_update_count}")
+        
+        if not webhook_info.url:
+            logger.error("FALHA: URL do webhook está vazio após configuração!")
+        else:
+            logger.info("Webhook configurado com sucesso!")
     except Exception as e:
         logger.error(f"Erro ao configurar webhook: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
     
     return app
 
