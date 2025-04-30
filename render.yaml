@@ -1,14 +1,14 @@
 services:
   - type: web
-    name: ragnatales-bot
-    env: python
-    buildCommand: |
-      pip install -r requirements.txt
-      chmod +x start_bot.sh
-    startCommand: PORT=10000 ./start_bot.sh
+    name: telegram-ragnatales-bot
+    env: docker
+    buildCommand: ""
+    startCommand: "gunicorn main:app --bind 0.0.0.0:$PORT --workers 1 --threads 8"
     envVars:
-      - key: PORT
-        value: 10000
-      - key: PYTHONUNBUFFERED
-        value: "true"
-    plan: free
+      - key: BOT_TOKEN
+        sync: false
+      - key: WEBHOOK_URL
+        value: https://telegram-ragnatales-bot-1.onrender.com
+      - key: IS_CONTAINER
+        value: true
+    healthCheckPath: /
