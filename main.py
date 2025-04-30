@@ -56,17 +56,17 @@ def get_item_info(item_name):
     try:
         logger.info(f"Buscando informações para: {item_name}")
         navegador.get("https://ragnatales.com.br/db/items")
-        time.sleep(3)
+        time.sleep(5)
         
         try:
             campo_pesquisar = navegador.find_element(By.CSS_SELECTOR, "input[placeholder='Filtrar por nome']")
             campo_pesquisar.click()
             campo_pesquisar.send_keys(item_name, Keys.ENTER)
-            time.sleep(2)
+            time.sleep(3)
 
             item = navegador.find_element(By.XPATH, '//a[starts-with(@href, "/db/items/")]')
             item.click()
-            time.sleep(2)
+            time.sleep(3)
 
             try:
                 media_texto = navegador.find_element(By.XPATH, '//div[contains(text(), "A Média de preço deste item é de")]').text
@@ -80,7 +80,7 @@ def get_item_info(item_name):
             navegador.execute_script("arguments[0].scrollIntoView({block: 'center'});", botao_lojas)
             time.sleep(1)
             ActionChains(navegador).move_to_element(botao_lojas).pause(0.5).click().perform()
-            time.sleep(2)
+            time.sleep(3)
 
             lojas = navegador.find_elements(By.CSS_SELECTOR, ".rounded-sm.bg-white.text-black.px-4.py-2.text-base")
             lowest_price = float('inf')
