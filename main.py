@@ -56,17 +56,17 @@ def get_item_info(item_name):
     try:
         logger.info(f"Buscando informações para: {item_name}")
         navegador.get("https://ragnatales.com.br/db/items")
-        time.sleep(5)
+        time.sleep(10)
         
         try:
             campo_pesquisar = navegador.find_element(By.CSS_SELECTOR, "input[placeholder='Filtrar por nome']")
             campo_pesquisar.click()
             campo_pesquisar.send_keys(item_name, Keys.ENTER)
-            time.sleep(3)
+            time.sleep(10)
 
             item = navegador.find_element(By.XPATH, '//a[starts-with(@href, "/db/items/")]')
             item.click()
-            time.sleep(3)
+            time.sleep(5)
 
             try:
                 media_texto = navegador.find_element(By.XPATH, '//div[contains(text(), "A Média de preço deste item é de")]').text
