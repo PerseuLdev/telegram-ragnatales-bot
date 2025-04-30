@@ -47,4 +47,4 @@ ENV DISPLAY=:99
 ENV IS_CONTAINER=true
 
 # Comando para iniciar o bot
-CMD ["python", "bot.py"]
+CMD ["python", "main.py"]
